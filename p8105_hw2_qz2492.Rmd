@@ -1,0 +1,128 @@
+---
+title: "p8105_hw2_qz2492"
+author: "qz2492"
+date: "2022-10-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+## Problem 1
+
+```{r read and clean data, message=FALSE}
+# Read data and clean its names
+NYC_T = read.csv('./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv') %>%
+  janitor::clean_names()
+
+# Check which columns got NULL values
+NYC_T %>% naniar::miss_var_summary()
+
+# Convert NULL values into chr to make route 8~11 consistent with others
+NYC_T[is.na(NYC_T)] = '0'
+
+# Select the columns we want and convert entry variable from chr to logical
+NYC_T = select(NYC_T,
+  line, station_name, station_latitude, station_longitude,
+  starts_with("route"), entry, vending, entrance_type, ada
+) %>% mutate(entry = ifelse(entry == "YES", TRUE, FALSE))
+```
+
+This dataset mainly contains names and locations of every station, which lines are they in, 
+whether they have vending machines and equipment for disabled. My cleaning steps include reading and cleaning names, processing NULL values and selection for columns. The resulting dataset has 1868 rows x 19 columns. And it is not tidy because of the redundance in `route` variable.
+
+```{r distinct stations, eval=FALSE, message=FALSE, include=TRUE}
+NYC_T %>% 
+  select(station_name, line) %>% 
+  distinct
+```
+
+According to the code and output, there are 465 distinct stations.
+
+```{r ADA compliance, eval=FALSE, message=FALSE, include=TRUE}
+NYC_T %>% 
+  filter(ada == TRUE) %>% 
+  select(station_name, line) %>% 
+  distinct
+```
+
+According to the code and output, there are 84 ADA compliant stations.
+
+```{r compute proportions}
+NYC_T %>% 
+  filter(vending == "NO") %>% 
+  pull(entry) %>% 
+  mean
+```
+
+According to the code and output, there are 37.7% station entrances / exits without vending allow entrance.
+
+```{r distinct stations serve the A train, eval=FALSE, message=FALSE, include=TRUE}
+NYC_T %>% 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") %>% 
+  filter(route == "A") %>% 
+  select(station_name, line) %>% 
+  distinct
+```
+ 
+ According to the code and output, there are 60 distinct stations serving the A train.
+
+```{r proportions that ADA compliant, eval=FALSE, message=FALSE, include=TRUE}
+NYC_T %>% 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") %>% 
+  filter(route == "A", ada == TRUE) %>% 
+  select(station_name, line) %>% 
+  distinct
+```
+
+According to the code and output, there are 17 distinct stations serving the A train and ADA compliant.
+
+## Problem 2
+
+```{r read and clean the sheet for Mr. Trash Wheel, warning=FALSE}
+# Read data and omit non-data entries
+MrTW = read_excel('./data/Trash-Wheel-Collection-Totals-7-2020-2.xlsx', sheet = "Mr. Trash Wheel", range = "A2:N535") %>% janitor::clean_names()
+
+# omit rows that do not include dumpster-specific data
+MrTW$dumpster = as.numeric(MrTW$dumpster)
+MrTW = MrTW[!is.na(MrTW$dumpster),]
+
+# round the number of sports balls
+MrTW$sports_balls = as.integer(MrTW$sports_balls)
+```
+
+
+```{r read and clean the sheet for Professor Trash Wheel, warning=FALSE}
+# Read data and omit non-data entries
+ProfTW = read_excel('./data/Trash-Wheel-Collection-Totals-7-2020-2.xlsx', sheet = "Professor Trash Wheel", range = "A2:N117") %>% janitor::clean_names()
+
+# omit rows that do not include dumpster-specific data
+ProfTW$dumpster = as.numeric(ProfTW$dumpster)
+ProfTW = ProfTW[!is.na(ProfTW$dumpster),]
+
+# round the number of sports balls
+ProfTW$sports_balls = as.integer(ProfTW$sports_balls)
+```
+
+```{r combine two datasets to produce a tidy one}
+# add a column in each tibble to identify them
+MrTW = add_column(MrTW, sheet = 'Mr. Trash Wheel', .before = 1)
+ProfTW = add_column(ProfTW, sheet = 'Professor Trash Wheel', .before = 1)
+
+# combining
+CombinedTW = bind_rows(MrTW, ProfTW)
+```
+
+There are `r nrow(MrTW)` rows, `r ncol(MrTW)` columns and `r nrow(MrTW)* ncol(MrTW)` observations in _Mr. Trash Wheel data set_,
+`r nrow(ProfTW)` rows, `r ncol(ProfTW)` columns and `r nrow(ProfTW)* ncol(ProfTW)` observations in _Professor Trash Wheel data set_, and
+`r nrow(CombinedTW)` rows, `r ncol(CombinedTW)` columns and `r nrow(CombinedTW)* ncol(CombinedTW)` observations in _Combined data set_.
+All of them have the same columns, `sheet` indicating which sheets they belong to, `Dumpster` is the dumpster number, `month`, `year`, `date` indicate the time when these dumpster worked, `weight_tons` and `volume_cubic_yards` describe how much trash each dumpster removed. For  _Mr. Trash Wheel data set_, the _weight_ is from `r min(MrTW$weight_tons)` to `r max(MrTW$weight_tons)` tons, with the mean of `r round(mean(MrTW$weight_tons), digits = 2)`  tons. For  _Professor Trash Wheel data set_, the _weight_ is from `r min(ProfTW$weight_tons)` to `r max(ProfTW$weight_tons)` tons, with the mean of `r round(mean(ProfTW$weight_tons), digits = 2)` tons.  
+For this data,  the total weight of trash collected by Professor Trash Wheel is `r sum(ProfTW$weight_tons)` tons, the total number of sports balls collected by Mr. Trash Wheel in 2020 is `r sum(MrTW %>% filter(year == 2020) %>% select(sports_balls))`.
